@@ -2,6 +2,9 @@ name: CI Pipeline
 
 on:
   push:
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   test:
@@ -38,17 +41,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build API image
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        if: github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/promptlab/backend
-          push: false
-          tags: promptlab-api:latest
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/promptlab-api:latest
+            ghcr.io/${{ github.repository_owner }}/promptlab-api:${{ github.sha }}
 
-      - name: Build Frontend image
+      - name: Build and push Frontend image
+        if: github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/promptlab/frontend
-          push: false
-          tags: promptlab-frontend:latest
-          
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/promptlab-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/promptlab-frontend:${{ github.sha }}
