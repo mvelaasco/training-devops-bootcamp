@@ -1,16 +1,23 @@
 name: CI Pipeline
+
 on:
   push:
   pull_request:
+    branches: 
+      - main
+      - 'feat/**'
+
 permissions:
   contents: read
   packages: write
   pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -18,8 +25,13 @@ jobs:
           cache-dependency-path: apps/promptlab/backend/package-lock.json
       - run: npm ci
         working-directory: ./apps/promptlab/backend
+      - run: mkdir -p data
+        working-directory: ./apps/promptlab/backend
       - run: npm test
         working-directory: ./apps/promptlab/backend
+        env:
+          DB_PATH: /tmp/promptlab-ci.db
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -33,41 +45,49 @@ jobs:
         working-directory: ./apps/promptlab/backend
       - run: npm run lint
         working-directory: ./apps/promptlab/backend
+
   build:
     runs-on: ubuntu-latest
     needs: [test, lint]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v5
+      - name: Build and push API
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
         with:
           context: ./apps/promptlab/backend
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/promptlab-api:latest
             ghcr.io/${{ github.repository_owner }}/promptlab-api:${{ github.sha }}
-      - uses: docker/build-push-action@v5
+      - name: Build and push Frontend
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
         with:
           context: ./apps/promptlab/frontend
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/promptlab-frontend:latest
             ghcr.io/${{ github.repository_owner }}/promptlab-frontend:${{ github.sha }}
+
   notify:
     runs-on: ubuntu-latest
     needs: [test, lint, build]
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/github-script@v7
+      - name: Comment on PR
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ **CI passed!** Tests, lint, and build all green.'
+              body: '✅ **CI Pipeline passed!**\n\n- Tests: passed\n- Lint: passed\n- Build: passed\n\n_Automated comment by GitHub Actions_'
             })
