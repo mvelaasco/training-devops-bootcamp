@@ -2,6 +2,10 @@ name: CI Pipeline
 
 on:
   push:
+  pull_request:
+    branches: 
+      - main
+      - 'feat/**'
 
 permissions:
   contents: read
@@ -12,9 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/promptlab/backend/package-lock.json
       - run: npm ci
         working-directory: ./apps/promptlab/backend
       - run: mkdir -p data
@@ -31,6 +38,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/promptlab/backend/package-lock.json
       - run: npm ci
         working-directory: ./apps/promptlab/backend
       - run: npm run lint
